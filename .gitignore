@@ -1,0 +1,51 @@
+# Arquivos de banco de dados
+*.db
+*.sqlite
+*.sqlite3
+
+# Diretório de instância (contém banco SQLite)
+instance/
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.production
+
+# Arquivos temporários
+*.tmp
+*.log
+*.swp
+*.swo
+
+# Diretórios de cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de build
+build/
+dist/
+*.egg-info/
+
+# Arquivos de logs de aplicação
+logs/
+*.log
+
+# Arquivos de configuração local
+config_local.py
+local_settings.py
+
+# Arquivos de backup
+*.bak
+*.backup
+backup_*

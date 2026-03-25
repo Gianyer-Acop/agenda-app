@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda de Faculdade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app" style="display: none;">
+        <!-- Overlay for mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay" onclick="appState.toggleSidebar()"></div>
+        
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="ri-book-3-line"></i><span>Menu</span></h2>
+                <button class="sidebar-toggle" onclick="appState.toggleSidebar()" title="Recolher menu"><i class="ri-menu-fold-line" id="toggle-icon"></i></button>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-view="dashboard" data-label="Dashboard" onclick="appState.navigate('dashboard')">
+                    <i class="ri-dashboard-line"></i> <span>Dashboard</span>
+                </li>
+                <li data-view="subjects" data-label="Disciplinas" onclick="appState.navigate('subjects')">
+                    <i class="ri-book-mark-line"></i> <span>Disciplinas</span>
+                </li>
+                <li data-view="activities" data-label="Atividades" onclick="appState.navigate('activities')">
+                    <i class="ri-calendar-todo-line"></i> <span>Atividades</span>
+                </li>
+                <li data-view="calendar" data-label="Calendário" onclick="appState.navigate('calendar')">
+                    <i class="ri-calendar-event-line"></i> <span>Calendário</span>
+                </li>
+                <li data-view="schedules" data-label="Horários" onclick="appState.navigate('schedules')">
+                    <i class="ri-time-line"></i> <span>Horários</span>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <li onclick="appState.openMyAccount()" data-label="Minha conta">
+                    <i class="ri-user-settings-line"></i> <span>Minha conta</span>
+                </li>
+                <li onclick="appState.toggleTheme()" data-label="Tema" title="Mudar tema">
+                    <i class="ri-sun-line"></i> <span id="theme-label">Tema: Claro</span>
+                </li>
+                <li onclick="appState.logout()" data-label="Sair">
+                    <i class="ri-logout-box-line"></i> <span>Sair</span>
+                </li>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <div style="display:flex; align-items:center; gap:12px">
+                    <button class="sidebar-toggle mobile-only" style="display:none" onclick="appState.toggleSidebar()" id="mobile-menu-btn">
+                        <i class="ri-menu-line"></i>
+                    </button>
+                    <div class="breadcrumb" id="breadcrumb"><i class="ri-book-3-line"></i> Agenda Acadêmica</div>
+                </div>
+                <div class="actions">
+                    <!-- Botão de tema movido para a barra lateral -->
+                </div>
+            </header>
+
+            <div class="content-view" id="view-container">
+                <!-- Dynamic Content Rendered Here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-container" class="modal-backdrop hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h3 id="modal-title">Title</h3>
+                <button class="btn-close" onclick="appState.closeModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic Form -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Screen -->
+    <div id="auth-screen" class="auth-container" style="display: none;">
+        <div class="auth-card glass-panel">
+            <div class="auth-header">
+                <i class="ri-book-3-line"></i>
+                <h1>Agenda Acadêmica</h1>
+                <p id="auth-subtitle">Entre para organizar seus estudos</p>
+            </div>
+            
+            <form id="login-form" onsubmit="event.preventDefault(); appState.handleLogin()">
+                <div class="form-group">
+                    <label>Nome de Usuário ou E-mail</label>
+                    <input type="text" id="login-user" placeholder="Seu nome ou e-mail" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="login-pass" placeholder="••••••••" required>
+                        <i class="ri-eye-off-line toggle-pass" onclick="appState.togglePasswordVisibility('login-pass', this)"></i>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary w-100">Entrar</button>
+                <p class="auth-footer">Não tem conta? <a href="#" onclick="appState.toggleAuthMode('register')">Cadastre-se</a></p>
+            </form>
+
+            <form id="register-form" style="display: none;" onsubmit="event.preventDefault(); appState.handleRegister()">
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="reg-name" placeholder="Como quer ser chamado?" required>
+                </div>
+                <div class="form-group">
+                    <label>E-mail</label>
+                    <input type="email" id="reg-email" placeholder="seu@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="reg-pass" placeholder="Crie uma senha forte" required>
+                        <i class="ri-eye-off-line toggle-pass" onclick="appState.togglePasswordVisibility('reg-pass', this)"></i>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary w-100">Criar Conta</button>
+                <p class="auth-footer">Já tem conta? <a href="#" onclick="appState.toggleAuthMode('login')">Entrar</a></p>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
