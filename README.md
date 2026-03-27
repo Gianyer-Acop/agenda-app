@@ -1,208 +1,102 @@
 # Agenda de Faculdade
 
-Um sistema web completo para organização acadêmica de estudantes universitários, desenvolvido com Python Flask e tecnologias modernas.
+Um sistema web completo para organização acadêmica de estudantes universitários, desenvolvido com Python (Flask) no backend e JavaScript Vanilla (SPA) no frontend moderno.
 
 ## 🎯 Visão Geral
 
-A **Agenda de Faculdade** é uma aplicação web que ajuda estudantes a organizar sua vida acadêmica de forma centralizada e intuitiva. O sistema permite gerenciar disciplinas, atividades, horários, faltas, notas e anotações em um único lugar.
+A **Agenda de Faculdade** é uma aplicação web que ajuda estudantes a organizar sua vida acadêmica de forma centralizada. O sistema permite gerenciar disciplinas, atividades, horários, faltas, notas e criar anotações em um único lugar seguro, com suporte a múltiplos usuários.
+
+---
+
+## 🏗️ Arquitetura do Sistema e Conexão entre Arquivos
+
+O projeto segue a arquitetura **SPA (Single Page Application) com uma API RESTful**. O frontend é renderizado client-side através de JavaScript, que se comunica com o backend Flask via chamadas assíncronas (fetch) utilizando o formato JSON.
+
+### Estrutura de Diretórios e a Função de Cada Arquivo
+
+#### Backend (Python/Flask)
+*   **`app.py`**: É o núcleo do servidor base. 
+    *   **Função**: Inicializa a aplicação Flask, configura as extensões (CORS, SQLAlchemy, LoginManager) e define todas as rotas (endpoints) da API REST (`/api/auth/*`, `/api/subjects`, `/api/activities`, etc.). Também lida com a autenticação e verificação de sessões ativas (`current_user`).
+*   **`models.py`**: Define as entidades do banco de dados (ORM).
+    *   **Função**: Cada classe (ex: `User`, `Subject`, `Activity`) mapeia para uma tabela do banco. Arquivo fundamental, contendo métodos para lidar com senhas criptografadas (`set_password`, `check_password`) e métodos utilitários `to_dict()` fundamentais para traduzir o banco de dados em JSON compreensível pelo frontend.
+*   **`database.py`**: O inicializador do banco.
+    *   **Função**: Cria a instância global `db = SQLAlchemy()`. Ao manter isso em um arquivo separado de `app.py` e `models.py`, o sistema evita que importações circulares "quebrem" o Python na hora de rodar.
+*   **`config.py`**: A ponte de configuração.
+    *   **Função**: Carrega variáveis de ambiente, especificamente voltado pro uso avançado da nuvem do Neon.tech (PostgreSQL). Define diretrizes cruciais como `SQLALCHEMY_DATABASE_URI` e `SECRET_KEY`.
+
+#### Frontend (HTML/JS/CSS)
+*   **`templates/index.html`**: A página mestra que o usuário real acessa. Por ser SPA, o arquivo carrega todas as divisões básicas vazias (`#auth-screen`, `#app`, `#view-container`, `#modal-container`) e aguarda o JavaScript trabalhar.
+*   **`static/css/style.css`**: Estiliza toda a interface com custom properties (`--variaveis`) suportando o sistema de mudança de temas.
+*   **`static/js/app.js`**: O "cérebro" do frontend. Agrupa todo o comportamento do site.
+    *   **Autenticação e Inicialização**: Funções `init()`, `checkAuth()`, `handleLogin()`, e `handleRegister()` configuram a sessão assim que o usuário entra, exibindo ou ocultando a tela de Login vs App.
+    *   **Navegação Rápida**: `navigate()` muda a aba ou seção visível do usuário de forma fluída sem recarregar a página (comum em Dashboards).
+    *   **Comunicação com a API**: 
+        *   `fetchData()`: Faz um carregamento global e paralelo de Disicplinas, Falores, Notas e Horários e guarda no objeto JS `appState.data`.
+        *   `saveItem()`, `deleteItem()`, `toggleActivity()`, `saveNote()`: Envia formulários modais e ações de interface como requests POST/PUT/DELETE diretas pro backend no arquivo `app.py`.
+    *   **Renderização Dinâmica**: Os métodos com prefixo `render` (`renderDashboard()`, `renderSubjects()`, `renderCalendar()`, etc) leem os JSONs presentes em `appState.data` para injetar tags em HTML no miolo do `<div id="view-container">`.
+    *   **Manipulação de UI**: Funções secundárias e de modais (ex: `openModal()`, `closeModal()`, `toggleTheme()`) apenas ocultam, exibem visuais ou setam varáveis na tela.
+
+### 🔄 Fluxo de Conexão na Prática (Como eles se conversam)
+1. **Ponto de Partida**: O usuário acessa a página base (servida pela rota `/` do `app.py`). O servidor devolve o arquivo HTML do `templates/index.html`.
+2. **Processamento do Cliente**: O HTML importa imediatamente o arquivo `app.js`. Automaticamente a classe `appState.init()` é executada acionando `checkAuth()`. 
+3. **Ponte Frontend <> Backend**: O `app.js` faz uma requisição fetch na rota `/api/auth/me`. O servidor em `app.py` confere a criptografia via Flask-Login (usando `models.py`). Se não há sessão logada, o `app.js` diz pro HTML mostrar o login.
+4. **Requisição Segura**: Se validado, ou com o login recém-feito, o Javascript fará um `fetchData()`, conectando o arquivo `app.js` com TODAS as rotas de busca de `app.py` ao mesmo tempo.
+5. **Acesso ao Banco e Render**: `app.py` busca os registros dos modelos (`models.py`), as linhas encontradas viram dicts e consequentemente convertidas pelo Flask pra JSONs que correm na internet até o `app.js`, que finaliza usando a função `renderDashboard()` para "pintar" o DOM, montando o sistema na tela.
+
+---
 
 ## 🚀 Principais Funcionalidades
 
 ### 1. **Gestão de Disciplinas**
-- Cadastro e organização de disciplinas do semestre
-- Definição de metas de frequência (máximo de faltas permitidas)
-- Definição de média alvo para aprovação
-- Personalização com cores para identificação visual
-- Anotações específicas por disciplina
+- Cadastro e organização de disciplinas do semestre.
+- Definição de metas de frequência e notas, com cores personalizadas.
 
 ### 2. **Controle de Atividades e Trabalhos**
-- Cadastro de tarefas, trabalhos e provas com datas de entrega
-- Classificação por tipo: Geral, Trabalho ou Prova
-- Marcação de conclusão de atividades
-- Descrição detalhada e notas adicionais
-- Integração com calendário para visualização das entregas
+- Cadastro de tarefas, trabalhos e provas com datas de entrega.
+- Checklists dinâmicos e descrição rica.
 
-### 3. **Horário de Aulas**
-- Organização semanal das aulas por dia da semana
-- Definição de horários de início e fim
-- Localização da sala de aula
-- Visualização em layout de grade semanal
-- Vinculação com disciplinas cadastradas
+### 3. **Horário de Aulas & Calendário Integrado**
+- Visualização em layout de grade semanal com controle de salas.
+- Calendário mensal exibindo os destaques e as restrições por dia.
 
-### 4. **Controle de Faltas**
-- Registro de faltas por disciplina
-- Comparação automática com limite máximo configurado
-- Alertas visuais quando limite de faltas é atingido
-- Histórico de faltas por disciplina
-
-### 5. **Gestão de Notas**
-- Registro de notas de provas e avaliações
-- Cálculo automático de médias ponderadas
-- Comparação com média alvo configurada
-- Alertas quando a média está abaixo do objetivo
-- Histórico de todas as avaliações por disciplina
-
-### 6. **Anotações e Comentários**
-- Sistema de notas adesivas por disciplina ou atividade
-- Editor de texto rico para anotações detalhadas
-- Histórico de anotações organizado por data
-- Integração direta com disciplinas e atividades
-
-### 7. **Dashboard Inteligente**
-- Visão geral do semestre com estatísticas resumidas
-- Indicadores de progresso por disciplina
-- Alertas de faltas e médias críticas
-- Resumo de atividades pendentes e concluídas
-
-### 8. **Calendário Integrado**
-- Visualização mensal das atividades e entregas
-- Destaque visual de dias com compromissos
-- Detalhamento de atividades ao clicar nos dias
-- Integração com o controle de atividades
+### 4. **Anotações, Faltas e Notas Inteligentes**
+- Comparação automática com limite máximo configurado gerando alertas visuais (Dashboards).
+- Sistema de notas adesivas com blocos de texto por disciplina ou atividade.
+- Cálculo de média ponderada, com análise se a média do aluno está abaixo ou acima da idealizada.
 
 ## 🛠️ Tecnologias Utilizadas
 
-### Backend
-- **Python 3.x** - Linguagem principal
-- **Flask** - Framework web
-- **Flask-SQLAlchemy** - ORM para banco de dados
-- **Flask-Login** - Autenticação de usuários
-- **Flask-CORS** - Compartilhamento de recursos entre origens
-- **SQLite** - Banco de dados relacional
-
-### Frontend
-- **HTML5** - Estrutura da página
-- **CSS3** - Estilização com variáveis CSS para temas
-- **JavaScript ES6+** - Lógica do cliente
-- **Font Awesome/Remix Icon** - Ícones
-- **Google Fonts (Inter)** - Tipografia
-
-## 📁 Estrutura de Arquivos
-
-```
-Agenda de Faculdade/
-├── app.py              # Aplicação Flask principal
-├── database.py         # Configuração do banco de dados
-├── models.py           # Modelos de dados (ORM)
-├── requirements.txt    # Dependências Python
-├── agenda.db          # Banco de dados SQLite (gerado)
-├── static/            # Arquivos estáticos
-│   ├── css/
-│   │   └── style.css  # Estilos principais
-│   └── js/
-│       └── app.js     # Lógica frontend
-└── templates/         # Templates HTML
-    └── index.html     # Página principal
-```
-
-## 🏗️ Modelos de Dados
-
-### Usuário (User)
-- Identificação única
-- Nome e e-mail
-- Senha criptografada
-- Sistema de login seguro
-
-### Disciplina (Subject)
-- Nome da disciplina
-- Cor de identificação
-- Limite máximo de faltas
-- Média alvo para aprovação
-- Anotações específicas
-
-### Atividade (Activity)
-- Título e descrição
-- Data de entrega
-- Tipo (Geral, Trabalho, Prova)
-- Status de conclusão
-- Vinculação com disciplina
-
-### Horário (Schedule)
-- Dia da semana
-- Horário de início e fim
-- Local da aula
-- Vinculação com disciplina
-
-### Falta (Absence)
-- Data da falta
-- Motivo (opcional)
-- Vinculação com disciplina
-
-### Nota (Grade)
-- Descrição da avaliação
-- Valor obtido e máximo
-- Peso da avaliação
-- Cálculo de média ponderada
-
-### Anotação (Note)
-- Título e conteúdo
-- Data de criação
-- Vinculação com disciplina ou atividade
-
-## 🎨 Interface do Usuário
-
-### Design Responsivo
-- Layout adaptável para desktop e mobile
-- Sidebar colapsável
-- Navegação intuitiva por ícones
-- Sistema de temas (claro, conforto, escuro)
-
-### Experiência do Usuário
-- Carregamento rápido
-- Feedback visual imediato
-- Alertas coloridos para situações críticas
-- Navegação por abas organizadas
+**Backend:** Python 3.x, Flask, Flask-SQLAlchemy, Flask-Login, Neon.tech (PostgreSQL)
+**Frontend:** HTML5, CSS3, JavaScript Vanilla (ES6+), Remix Icon.
 
 ## 🔧 Como Executar
 
-### Requisitos
-- Python 3.6 ou superior
-- pip (gerenciador de pacotes Python)
+### Pré-Requisitos
+- Python 3.8+ e pip.
+- Banco de dados suportado (Neon PostgreSQL recomendado se via `.env`).
 
-### Instalação
-1. Clone o repositório
-2. Instale as dependências:
+### Passo a Passo de Instalação (Local)
+
+1. Clone o repositório.
+2. Crie e ative um ambiente virtual:
+    ```bash
+    python -m venv .venv
+    # Windows
+    .venv\Scripts\activate
+    ```
+3. Instale as dependências:
    ```bash
    pip install -r requirements.txt
    ```
-3. Execute a aplicação:
+4. Prepare o Banco Local (SQLite caso sem .ENV):
+   ```bash
+   python recreate_db.py
+   ```
+5. Execute a aplicação inicializando o Backend na porta 5000:
    ```bash
    python app.py
    ```
-4. Acesse no navegador: `http://localhost:5000`
-
-## 📊 Principais Benefícios
-
-### Para Estudantes
-- **Organização Centralizada**: Tudo em um único lugar
-- **Controle de Frequência**: Evita surpresas com faltas
-- **Planejamento de Estudos**: Visualização clara de entregas
-- **Acompanhamento de Desempenho**: Médias e metas em tempo real
-- **Flexibilidade**: Ajuste às necessidades individuais
-
-### Para Instituições
-- **Modelo de Referência**: Sistema completo de gestão acadêmica
-- **Arquitetura Escalável**: Fácil de expandir e adaptar
-- **Código Limpo**: Boas práticas de desenvolvimento
-- **Documentação Clara**: Fácil manutenção e evolução
-
-## 🚀 Futuro Desenvolvimento
-
-### Possíveis Melhorias
-- Integração com calendários externos (Google Calendar)
-- Envio de lembretes por e-mail
-- Exportação de relatórios em PDF
-- Sistema de backup em nuvem
-- Aplicativo mobile nativo
-
-## 📄 Licença
-
-Este projeto é open source e está disponível sob a Licença MIT.
-
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou pull requests com melhorias, correções de bugs ou novas funcionalidades.
+6. Acesse a aplicação completa no navegador: `http://localhost:5000`
 
 ---
-
 **Desenvolvido com ❤️ para ajudar estudantes a alcançarem o sucesso acadêmico!**
