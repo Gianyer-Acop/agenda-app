@@ -651,7 +651,7 @@ const appState = {
             </div>
             
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3 style="text-transform: capitalize; color:var(--text-secondary); font-weight:600; font-size:1.1rem">Calendário de Estudos - ${monthName}</h3>
+                <h3 style="text-transform: capitalize; color:var(--text-secondary); font-weight:600; font-size:1.2rem">Calendário de Estudos - ${monthName}</h3>
                 <div style="display:flex; gap:8px;">
                     <button class="btn-primary" style="padding:4px 10px; font-size:0.85rem;" onclick="appState.changeMonth(-1, 'study')"><i class="ri-arrow-left-s-line"></i> Mês Ant</button>
                     <button class="btn-primary" style="padding:4px 10px; font-size:0.85rem;" onclick="appState.changeMonth(1, 'study')">Próx Mês <i class="ri-arrow-right-s-line"></i></button>
@@ -790,11 +790,11 @@ const appState = {
             body.innerHTML = `
                 <form onsubmit="event.preventDefault(); appState.saveItem('subjects');">
                     <div style="display:flex; gap:12px;">
-                        <div class="form-group" style="width: 80px; position:relative;">
+                        <div class="form-group" style="width: 110px;">
                             <label>Emoji</label>
-                            <input type="text" id="m-emoji" value="📚" required readonly style="text-align:center; font-size:1.2rem; padding:0.5rem; cursor:pointer;" onclick="appState.toggleEmojiPicker(event)">
-                            <div id="emoji-picker-container" class="hidden" style="position:absolute; top:75px; left:0; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,0.2); border-radius:8px;">
-                                <emoji-picker></emoji-picker>
+                            <div style="display:flex; gap:4px;">
+                                <input type="text" id="m-emoji" value="📚" required style="text-align:center; font-size:1.2rem; padding:0.5rem; flex:1;">
+                                <button type="button" onclick="appState.toggleEmojiPicker(event, 'm-emoji')" class="btn-primary" style="padding:0 10px; font-size:1.1rem; background:var(--bg-hover); color:var(--text-primary); border:1px solid var(--border-color)">😀</button>
                             </div>
                         </div>
                         <div class="form-group" style="flex:1;"><label>Nome</label><input type="text" id="m-name" required></div>
@@ -812,11 +812,11 @@ const appState = {
             body.innerHTML = `
                 <form onsubmit="event.preventDefault(); appState.updateSubject(${editId});">
                     <div style="display:flex; gap:12px;">
-                        <div class="form-group" style="width: 80px; position:relative;">
+                        <div class="form-group" style="width: 110px;">
                             <label>Emoji</label>
-                            <input type="text" id="m-emoji" value="${sub.emoji || '📚'}" required readonly style="text-align:center; font-size:1.2rem; padding:0.5rem; cursor:pointer;" onclick="appState.toggleEmojiPicker(event)">
-                            <div id="emoji-picker-container" class="hidden" style="position:absolute; top:75px; left:0; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,0.2); border-radius:8px;">
-                                <emoji-picker></emoji-picker>
+                            <div style="display:flex; gap:4px;">
+                                <input type="text" id="m-emoji" value="${sub.emoji || '📚'}" required style="text-align:center; font-size:1.2rem; padding:0.5rem; flex:1;">
+                                <button type="button" onclick="appState.toggleEmojiPicker(event, 'm-emoji')" class="btn-primary" style="padding:0 10px; font-size:1.1rem; background:var(--bg-hover); color:var(--text-primary); border:1px solid var(--border-color)">😀</button>
                             </div>
                         </div>
                         <div class="form-group" style="flex:1;"><label>Nome</label><input type="text" id="m-name" value="${sub.name}" required></div>
@@ -962,33 +962,59 @@ const appState = {
     },
 
     _attachEmojiPicker() {
+        // Only run once to set up the global picker
+        if (document.getElementById('global-emoji-picker-container')) return;
+
+        const globalPickerHtml = `
+            <div id="global-emoji-picker-backdrop" class="hidden" style="position:fixed; inset:0; z-index:99998; background:rgba(0,0,0,0.5);" onclick="appState.toggleEmojiPicker(event)"></div>
+            <div id="global-emoji-picker-container" class="hidden" style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:99999; box-shadow:0 8px 32px rgba(0,0,0,0.4); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; background:var(--bg-primary);">
+                <emoji-picker></emoji-picker>
+                <button type="button" style="padding:12px; background:var(--bg-hover); color:var(--text-primary); border:none; border-top:1px solid var(--border-color); font-weight:600; cursor:pointer;" onclick="appState.toggleEmojiPicker(event)">Fechar</button>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', globalPickerHtml);
+
         setTimeout(() => {
-            const picker = document.querySelector('emoji-picker');
-            const container = document.getElementById('emoji-picker-container');
-            const input = document.getElementById('m-emoji');
+            const picker = document.querySelector('#global-emoji-picker-container emoji-picker');
             
-            if (picker && container && input) {
-                // Adapta o tema pro componente
+            if (picker) {
                 if (this.theme === 'dark') {
                     picker.classList.add('dark');
                 }
                 picker.addEventListener('emoji-click', event => {
-                    input.value = event.detail.unicode;
-                    container.classList.add('hidden');
+                    const inputId = picker.getAttribute('data-target-input');
+                    if (inputId) {
+                        const input = document.getElementById(inputId);
+                        if (input) input.value = event.detail.unicode;
+                    }
+                    this.toggleEmojiPicker();
                 });
             }
-        }, 10);
+        }, 100);
     },
 
-    toggleEmojiPicker(event) {
+    toggleEmojiPicker(event, targetInputId = null) {
         if (event) {
             event.preventDefault();
             event.stopPropagation();
         }
-        const container = document.getElementById('emoji-picker-container');
-        if (container) {
-            container.classList.toggle('hidden');
+        
+        let container = document.getElementById('global-emoji-picker-container');
+        let backdrop = document.getElementById('global-emoji-picker-backdrop');
+        
+        if (!container) {
+            this._attachEmojiPicker();
+            setTimeout(() => this.toggleEmojiPicker(event, targetInputId), 150);
+            return;
         }
+
+        if (targetInputId) {
+            const picker = container.querySelector('emoji-picker');
+            if (picker) picker.setAttribute('data-target-input', targetInputId);
+        }
+
+        container.classList.toggle('hidden');
+        backdrop.classList.toggle('hidden');
     },
 
     async openNotes(parentType, parentId) {
