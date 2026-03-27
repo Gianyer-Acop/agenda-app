@@ -27,6 +27,7 @@ class Subject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     name = db.Column(db.String(100), nullable=False)
+    emoji = db.Column(db.String(10), default="📚")
     max_absences = db.Column(db.Integer, default=0)
     target_grade = db.Column(db.Float, default=6.0)
     color = db.Column(db.String(20), default="#ffffff")
@@ -36,12 +37,14 @@ class Subject(db.Model):
     schedules = db.relationship('Schedule', backref='subject', lazy=True, cascade="all, delete-orphan")
     absences = db.relationship('Absence', backref='subject', lazy=True, cascade="all, delete-orphan")
     grades = db.relationship('Grade', backref='subject', lazy=True, cascade="all, delete-orphan")
+    study_sessions = db.relationship('StudySession', backref='subject', lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
             "id": self.id,
             "user_id": self.user_id,
             "name": self.name,
+            "emoji": self.emoji or "📚",
             "max_absences": self.max_absences,
             "target_grade": self.target_grade,
             "color": self.color,
@@ -148,4 +151,28 @@ class Note(db.Model):
             "parent_type": self.parent_type,
             "parent_id": self.parent_id,
             "created_at": self.created_at
+        }
+
+class StudySession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=True)
+    title = db.Column(db.String(200), nullable=False)
+    date = db.Column(db.String(10), nullable=False) # YYYY-MM-DD
+    time = db.Column(db.String(5), nullable=True) # HH:MM (optional)
+    duration = db.Column(db.Integer, nullable=True) # in minutos (optional)
+    status = db.Column(db.String(20), default="pending") # pending, completed
+    notes = db.Column(db.Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "subject_id": self.subject_id,
+            "title": self.title,
+            "date": self.date,
+            "time": self.time or "",
+            "duration": self.duration or 0,
+            "status": self.status,
+            "notes": self.notes or ""
         }

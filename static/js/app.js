@@ -7,7 +7,8 @@ const appState = {
         activities: [],
         schedules: [],
         absences: [],
-        grades: []
+        grades: [],
+        studySessions: []
     },
 
     async init() {
@@ -35,6 +36,17 @@ const appState = {
         
         // Update theme button in sidebar
         this.updateThemeButton();
+
+        // Fechar emoji picker ao clicar fora
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('emoji-picker-container');
+            const input = document.getElementById('m-emoji');
+            if (container && input && !container.classList.contains('hidden')) {
+                if (!container.contains(e.target) && e.target !== input) {
+                    container.classList.add('hidden');
+                }
+            }
+        });
     },
 
     async checkAuth() {
@@ -238,19 +250,37 @@ const appState = {
     },
 
     async fetchData() {
+        if (this.data.subjects.length === 0 && this.data.activities.length === 0) {
+            const container = document.getElementById('view-container');
+            if (container) {
+                container.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; color:var(--text-secondary); text-align:center;">
+                        <i class="ri-loader-4-line" style="font-size:3.5rem; animation: spin 1s linear infinite; color:var(--accent-color);"></i>
+                        <h3 style="margin-top:20px; font-weight:600; color:var(--text-primary);">Carregando seus dados...</h3>
+                        <p style="font-size:0.95rem; margin-top:8px; max-width:400px; opacity:0.8;">
+                            O banco de dados principal (Neon.tech) pode levar alguns segundos para "acordar" no primeiro acesso do dia.
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
         try {
-            const [subjects, activities, schedules, absences, grades] = await Promise.all([
-                fetch('/api/subjects').then(r => r.json()),
-                fetch('/api/activities').then(r => r.json()),
-                fetch('/api/schedules').then(r => r.json()),
-                fetch('/api/absences').then(r => r.json()),
-                fetch('/api/grades').then(r => r.json())
+            const safeFetch = url => fetch(url).then(r => r.ok ? r.json() : []).catch(() => []);
+            const [subjects, activities, schedules, absences, grades, studySessions] = await Promise.all([
+                safeFetch('/api/subjects'),
+                safeFetch('/api/activities'),
+                safeFetch('/api/schedules'),
+                safeFetch('/api/absences'),
+                safeFetch('/api/grades'),
+                safeFetch('/api/study_sessions')
             ]);
             this.data.subjects = subjects;
             this.data.activities = activities;
             this.data.schedules = schedules;
             this.data.absences = absences;
             this.data.grades = grades;
+            this.data.studySessions = studySessions;
             this.renderView();
         } catch (e) {
             console.error("Erro ao buscar dados", e);
@@ -271,6 +301,7 @@ const appState = {
         else if (this.currentView === 'activities') this.renderActivities(container);
         else if (this.currentView === 'schedules') this.renderSchedules(container);
         else if (this.currentView === 'calendar') this.renderCalendar(container);
+        else if (this.currentView === 'study-plan') this.renderStudyPlan(container);
     },
 
     renderDashboard(container) {
@@ -289,7 +320,7 @@ const appState = {
             return `
             <div class="card" style="border-left: 4px solid ${sub.color}; cursor:pointer;" onclick="appState.openNotes('subject', ${sub.id})">
                 <div class="flex-between" style="margin-bottom:10px">
-                    <h4>${sub.name}</h4>
+                    <h4>${sub.emoji || '📚'} ${sub.name}</h4>
                     <span style="font-size:0.75rem; color:var(--text-secondary)">Média: <strong style="color:${gradeWarning?'var(--danger-color)':'inherit'}">${avg}</strong>/${sub.target_grade}</span>
                 </div>
                 <div style="font-size:0.85rem; color:var(--text-secondary); display:flex; flex-direction:column; gap:8px">
@@ -351,8 +382,11 @@ const appState = {
                     return `
                     <div class="card">
                         <div class="flex-between" style="margin-bottom: 12px;">
-                            <h3><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${sub.color};margin-right:8px;"></span>${sub.name}</h3>
-                            <button style="background:none; border:none; cursor:pointer; color:var(--text-secondary); font-size:1rem;" onclick="appState.deleteItem('subjects', ${sub.id})" title="Excluir"><i class="ri-delete-bin-line"></i></button>
+                            <h3><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${sub.color};margin-right:8px;"></span>${sub.emoji || '📚'} ${sub.name}</h3>
+                            <div style="display:flex; gap:6px;">
+                                <button style="background:none; border:none; cursor:pointer; color:var(--accent-color); font-size:1rem;" onclick="appState.openModal('editSubject', null, ${sub.id})" title="Editar"><i class="ri-edit-line"></i></button>
+                                <button style="background:none; border:none; cursor:pointer; color:var(--danger-color); font-size:1rem;" onclick="appState.deleteItem('subjects', ${sub.id})" title="Excluir"><i class="ri-delete-bin-line"></i></button>
+                            </div>
                         </div>
                         <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 12px; display:flex; justify-content:space-between;">
                             <span>Faltas: <strong style="color:${absWarning?'var(--danger-color)':'inherit'}">${subAbsences}/${sub.max_absences}</strong></span>
@@ -393,7 +427,7 @@ const appState = {
                         <div style="flex:1">
                             <h3 style="text-decoration: ${act.status === 'completed' ? 'line-through' : 'none'}; font-size:0.95rem">${act.title}</h3>
                             <p style="font-size:0.8rem;color:var(--text-secondary); margin-top:2px;">
-                                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${sub.color};margin-right:4px;"></span>${sub.name}
+                                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${sub.color};margin-right:4px;"></span>${sub.emoji || '📚'} ${sub.name}
                                 ${act.due_date ? `&nbsp;·&nbsp;<i class="ri-calendar-line"></i> ${act.due_date}` : ''}
                             </p>
                             ${act.notes ? `<p style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px; white-space:pre-wrap; overflow:hidden; max-height:40px; text-overflow:ellipsis;">${act.notes}</p>` : ''}
@@ -474,45 +508,35 @@ const appState = {
             </div>`;
     },
 
-    renderCalendar(container) {
-        // Usa o mês e ano armazenados no localStorage ou o atual
-        const storedMonth = parseInt(localStorage.getItem('calendar_month'));
-        const storedYear = parseInt(localStorage.getItem('calendar_year'));
-        
-        const year = isNaN(storedYear) ? new Date().getFullYear() : storedYear;
-        const month = isNaN(storedMonth) ? new Date().getMonth() : storedMonth;
-        
+    _generateCalendarGrid(year, month, getDayItemsFn, onDayClickFn) {
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const monthName = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-        // Verifica se é o mês atual para destacar o dia de hoje
         const today = new Date();
         const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
-
         let daysHtml = '';
         
-        // Cria blocos para cada dia do mês (sem blocos vazios de alinhamento)
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const dayActivities = this.data.activities.filter(a => a.due_date === dateStr);
+            const items = getDayItemsFn(dateStr);
             const isToday = isCurrentMonth && d === today.getDate();
-            const hasItems = dayActivities.length > 0;
+            const hasItems = items.length > 0;
             
-            // Determina o tipo do dia da semana
             const dayOfWeek = new Date(year, month, d).getDay();
             const dayLabels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
             const dayLabel = dayLabels[dayOfWeek];
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             
-            const actsHtml = dayActivities.slice(0, 3).map(act => {
-                const sub = this.getSubject(act.subject_id);
-                const done = act.status === 'completed';
-                return `<div class="calendar-day-activity" style="background:${sub.color}22; color:${sub.color}; text-decoration:${done?'line-through':'none'}; border-left:2px solid ${sub.color}" title="${act.title}">${act.title}</div>`;
+            const actsHtml = items.slice(0, 3).map(item => {
+                const sub = this.getSubject(item.subject_id);
+                const done = item.status === 'completed';
+                const isStudy = item._type === 'study';
+                const bg = isStudy ? `${sub.color}15` : `${sub.color}22`;
+                const icon = isStudy ? '<i class="ri-focus-3-line"></i> ' : '';
+                return `<div class="calendar-day-activity" style="background:${bg}; color:${sub.color}; text-decoration:${done?'line-through':'none'}; border-left:2px solid ${sub.color}" title="${item.title}">${icon}${item.title}</div>`;
             }).join('');
-            const moreHtml = dayActivities.length > 3 ? `<div class="calendar-day-more">+${dayActivities.length - 3} mais</div>` : '';
+            const moreHtml = items.length > 3 ? `<div class="calendar-day-more">+${items.length - 3} mais</div>` : '';
 
             daysHtml += `
-                <div class="calendar-day ${isToday ? 'today' : ''}" onclick="${hasItems ? `appState.openDayDetail('${dateStr}')` : ''}">
+                <div class="calendar-day ${isToday ? 'today' : ''}" ${hasItems && onDayClickFn ? `onclick="${onDayClickFn(dateStr)}"` : ''}>
                     <div class="calendar-day-num" style="${hasItems ? 'color:var(--accent-color)' : ''}">${d}</div>
                     <div class="calendar-day-label" style="${isWeekend ? 'color:var(--danger-color)' : ''}">${dayLabel}</div>
                     <div class="calendar-day-content">
@@ -521,15 +545,30 @@ const appState = {
                     </div>
                 </div>`;
         }
+        return daysHtml;
+    },
+
+    renderCalendar(container) {
+        const storedMonth = parseInt(localStorage.getItem('calendar_month'));
+        const storedYear = parseInt(localStorage.getItem('calendar_year'));
+        
+        const year = isNaN(storedYear) ? new Date().getFullYear() : storedYear;
+        const month = isNaN(storedMonth) ? new Date().getMonth() : storedMonth;
+        const monthName = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+        const daysHtml = this._generateCalendarGrid(year, month, 
+            (dateStr) => this.data.activities.filter(a => a.due_date === dateStr).map(a => ({...a, _type: 'activity'})),
+            (dateStr) => `appState.openDayDetail('${dateStr}')`
+        );
 
         container.innerHTML = `
             <div class="flex-between" style="margin-bottom:20px">
-                <h1 class="view-title" style="margin-bottom:0"><i class="ri-calendar-event-line"></i> Calendário</h1>
+                <h1 class="view-title" style="margin-bottom:0"><i class="ri-calendar-event-line"></i> Calendário Geral</h1>
                 <div style="display:flex; align-items:center; gap:12px;">
                     <h3 style="text-transform: capitalize; color:var(--text-secondary); font-weight:600; font-size:1.2rem">${monthName}</h3>
                     <div style="display:flex; gap:8px;">
-                        <button class="btn-primary" style="padding:6px 12px; font-size:0.9rem;" onclick="appState.changeMonth(-1)"><i class="ri-arrow-left-s-line"></i></button>
-                        <button class="btn-primary" style="padding:6px 12px; font-size:0.9rem;" onclick="appState.changeMonth(1)"><i class="ri-arrow-right-s-line"></i></button>
+                        <button class="btn-primary" style="padding:6px 12px; font-size:0.9rem;" onclick="appState.changeMonth(-1, 'calendar')"><i class="ri-arrow-left-s-line"></i></button>
+                        <button class="btn-primary" style="padding:6px 12px; font-size:0.9rem;" onclick="appState.changeMonth(1, 'calendar')"><i class="ri-arrow-right-s-line"></i></button>
                     </div>
                 </div>
             </div>
@@ -538,14 +577,15 @@ const appState = {
                     ${daysHtml}
                 </div>
             </div>
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:20px; text-align:center;"><i class="ri-information-line"></i> Clique em um dia com atividades para ver os detalhes.</p>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:20px; text-align:center;"><i class="ri-information-line"></i> Clique em um dia com atividades/estudo para ver os detalhes.</p>
         `;
     },
 
-    changeMonth(offset) {
-        // Obtém o mês e ano atuais (do localStorage ou do sistema)
-        let currentMonth = parseInt(localStorage.getItem('calendar_month') || new Date().getMonth());
-        let currentYear = parseInt(localStorage.getItem('calendar_year') || new Date().getFullYear());
+    changeMonth(offset, type = 'calendar') {
+        const keyM = type === 'study' ? 'study_month' : 'calendar_month';
+        const keyY = type === 'study' ? 'study_year' : 'calendar_year';
+        let currentMonth = parseInt(localStorage.getItem(keyM) || new Date().getMonth());
+        let currentYear = parseInt(localStorage.getItem(keyY) || new Date().getFullYear());
         
         currentMonth += offset;
         
@@ -557,12 +597,84 @@ const appState = {
             currentYear--;
         }
         
-        // Atualiza o localStorage
-        localStorage.setItem('calendar_month', currentMonth);
-        localStorage.setItem('calendar_year', currentYear);
-        
-        // Renderiza o calendário com o novo mês/ano
-        this.renderCalendar(document.getElementById('view-container'));
+        localStorage.setItem(keyM, currentMonth);
+        localStorage.setItem(keyY, currentYear);
+        this.renderView();
+    },
+
+    renderStudyPlan(container) {
+        const storedMonth = parseInt(localStorage.getItem('study_month'));
+        const storedYear = parseInt(localStorage.getItem('study_year'));
+        const year = isNaN(storedYear) ? new Date().getFullYear() : storedYear;
+        const month = isNaN(storedMonth) ? new Date().getMonth() : storedMonth;
+        const monthName = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+        const daysHtml = this._generateCalendarGrid(year, month, 
+            (dateStr) => this.data.studySessions.filter(s => s.date === dateStr).map(s => ({...s, _type: 'study'})),
+            (dateStr) => `appState.openStudyDayDetail('${dateStr}')`
+        );
+
+        const sorted = this.data.studySessions.sort((a,b) => new Date(a.date) - new Date(b.date));
+        const pending = sorted.filter(s => s.status !== 'completed');
+        const done = sorted.filter(s => s.status === 'completed');
+
+        const renderSession = (sess) => {
+            const sub = this.getSubject(sess.subject_id);
+            return `
+            <div class="card" style="opacity: ${sess.status === 'completed' ? 0.65 : 1}; transition: opacity 0.3s; border-left: 4px solid ${sub.color};">
+                <div class="flex-between">
+                    <div style="display:flex; align-items:center; gap: 12px; flex:1">
+                        <input type="checkbox" style="width:18px;height:18px;accent-color:var(--accent-color);cursor:pointer;" ${sess.status === 'completed' ? 'checked' : ''} onchange="appState.toggleStudySession(${sess.id}, this.checked)">
+                        <div style="flex:1">
+                            <h3 style="text-decoration: ${sess.status === 'completed' ? 'line-through' : 'none'}; font-size:0.95rem">${sess.title}</h3>
+                            <p style="font-size:0.8rem;color:var(--text-secondary); margin-top:2px;">
+                                ${sub.emoji || '📚'} ${sub.name} &nbsp;·&nbsp;
+                                <i class="ri-calendar-line"></i> ${sess.date.split('-').reverse().join('/')} ${sess.time ? `&nbsp;<i class="ri-time-line"></i> ${sess.time}` : ''}
+                                ${sess.duration ? `&nbsp;·&nbsp;<i class="ri-timer-line"></i> ${sess.duration} min` : ''}
+                            </p>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:6px; margin-left:12px;">
+                        <button style="background:none; border:none; cursor:pointer; color:var(--accent-color); font-size:1rem;" onclick="appState.openModal('editStudySession', null, ${sess.id})" title="Editar"><i class="ri-edit-line"></i></button>
+                        <button style="background:none; border:none; cursor:pointer; color:var(--text-secondary); font-size:1rem;" onclick="appState.openNotes('study_session', ${sess.id})" title="Anotações"><i class="ri-sticky-note-line"></i></button>
+                        <button style="background:none; border:none; cursor:pointer; color:var(--danger-color); font-size:1rem;" onclick="appState.deleteItem('study_sessions', ${sess.id})" title="Excluir"><i class="ri-delete-bin-line"></i></button>
+                    </div>
+                </div>
+                ${sess.notes ? `<p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px; padding:8px 10px; background:var(--bg-hover); border-radius:var(--radius-sm); white-space:pre-wrap;">${sess.notes}</p>` : ''}
+            </div>`;
+        };
+
+        container.innerHTML = `
+            <div class="flex-between" style="margin-bottom:24px;">
+                <h1 class="view-title" style="margin-bottom:0"><i class="ri-focus-3-line"></i> Plano de Estudos</h1>
+                <button class="btn-primary" onclick="appState.openModal('studySession')"><i class="ri-add-line"></i> Nova Sessão</button>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="text-transform: capitalize; color:var(--text-secondary); font-weight:600; font-size:1.1rem">Calendário de Estudos - ${monthName}</h3>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-primary" style="padding:4px 10px; font-size:0.85rem;" onclick="appState.changeMonth(-1, 'study')"><i class="ri-arrow-left-s-line"></i> Mês Ant</button>
+                    <button class="btn-primary" style="padding:4px 10px; font-size:0.85rem;" onclick="appState.changeMonth(1, 'study')">Próx Mês <i class="ri-arrow-right-s-line"></i></button>
+                </div>
+            </div>
+            
+            <div class="calendar-wrapper" style="margin-bottom:32px; border-radius:var(--radius-md)">
+                <div class="calendar-grid">
+                    ${daysHtml}
+                </div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
+                <div>
+                    <h3 style="margin-bottom:16px; color:var(--accent-color); display:flex; align-items:center; gap:8px;"><i class="ri-focus-2-line"></i> Foco Atual / Pendentes</h3>
+                    ${pending.length === 0 ? '<p style="color:var(--text-secondary); font-size:0.9rem;">Nenhuma sessão de estudo programada.</p>' : pending.map(renderSession).join('')}
+                </div>
+                <div>
+                    <h3 style="margin-bottom:16px; color:var(--text-secondary); display:flex; align-items:center; gap:8px;"><i class="ri-check-double-line"></i> Concluídos</h3>
+                    ${done.length === 0 ? '<p style="color:var(--text-secondary); font-size:0.9rem;">Seu histórico de estudos concluídos aparecerá aqui.</p>' : done.map(renderSession).join('')}
+                </div>
+            </div>
+        `;
     },
 
     resetCalendar() {
@@ -599,7 +711,7 @@ const appState = {
                         <span style="width:10px;height:10px;border-radius:50%;background:${sub.color};display:inline-block;flex-shrink:0;margin-top:5px"></span>
                         <div>
                             <strong style="font-size:0.95rem; text-decoration:${done?'line-through':'none'}; color:${done?'var(--text-secondary)':'var(--text-primary)'}">${act.title}</strong>
-                            <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">${sub.name} &nbsp;·&nbsp; <i class="${typeIcon[act.activity_type] || 'ri-task-line'}"></i> ${typeLabel[act.activity_type] || 'Geral'}</p>
+                            <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">${sub.emoji || '📚'} ${sub.name} &nbsp;·&nbsp; <i class="${typeIcon[act.activity_type] || 'ri-task-line'}"></i> ${typeLabel[act.activity_type] || 'Geral'}</p>
                         </div>
                     </div>
                     <span style="font-size:0.75rem; padding:3px 8px; border-radius:12px; background:${done?'#22c55e22':'#f9731622'}; color:${done?'#16a34a':'#c2410c'}; font-weight:600; white-space:nowrap; flex-shrink:0">${done ? '✓ Concluída' : 'Pendente'}</span>
@@ -619,7 +731,48 @@ const appState = {
         const mc = document.getElementById('modal-container');
         document.getElementById('modal-title').innerHTML = `<i class="ri-calendar-event-line"></i> ${formatted}`;
         document.getElementById('modal-body').innerHTML = `
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px;">${dayActivities.length} item(s) para este dia</p>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px;">${dayActivities.length} atividade(s) para este dia</p>
+            ${itemsHtml}`;
+        mc.classList.remove('hidden');
+    },
+
+    openStudyDayDetail(dateStr) {
+        const dayStudies = this.data.studySessions.filter(s => s.date === dateStr);
+        if (dayStudies.length === 0) return;
+
+        const date = new Date(dateStr + 'T12:00:00');
+        const formatted = date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        const itemsHtml = dayStudies.map(sess => {
+            const sub = this.getSubject(sess.subject_id);
+            const done = sess.status === 'completed';
+            return `
+            <div style="padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-secondary); margin-bottom: 12px; border-left: 4px solid ${sub.color}; opacity: ${done ? 0.65 : 1};">
+                <div class="flex-between" style="margin-bottom: 8px;">
+                    <div>
+                        <strong style="font-size:0.95rem; text-decoration:${done?'line-through':'none'}; color:var(--text-primary)">${sess.title}</strong>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">
+                            ${sub.emoji || '📚'} ${sub.name} &nbsp;·&nbsp; ${sess.time ? `<i class="ri-time-line"></i> ${sess.time}` : ''}
+                            ${sess.duration ? `&nbsp;·&nbsp;<i class="ri-timer-line"></i> ${sess.duration} min` : ''}
+                        </p>
+                    </div>
+                    <span style="font-size:0.75rem; padding:3px 8px; border-radius:12px; background:${done?'#22c55e22':'#f9731622'}; color:${done?'#16a34a':'#c2410c'}; font-weight:600; white-space:nowrap; flex-shrink:0">${done ? '✓ Concluída' : 'Pendente'}</span>
+                </div>
+                ${sess.notes ? `<p style="font-size:0.85rem; color:var(--text-secondary); padding: 8px; background:var(--bg-hover); border-radius:var(--radius-md); white-space:pre-wrap; margin-top:8px;">${sess.notes}</p>` : ''}
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                    <button onclick="appState.closeModal(); appState.openModal('editStudySession', null, ${sess.id})" style="font-size:0.8rem; padding:4px 10px; border:1px solid var(--border-color); border-radius:var(--radius-md); background:none; color:var(--text-primary); cursor:pointer;"><i class="ri-edit-line"></i> Editar</button>
+                    <button onclick="appState.closeModal(); appState.openNotes('study_session', ${sess.id})" style="font-size:0.8rem; padding:4px 10px; border:1px solid var(--border-color); border-radius:var(--radius-md); background:none; color:var(--text-primary); cursor:pointer;"><i class="ri-sticky-note-line"></i> Anotações</button>
+                    <button onclick="appState.toggleStudySession(${sess.id}, ${!done}); appState.closeModal(); appState.navigate('study-plan');" style="font-size:0.8rem; padding:4px 10px; border:1px solid var(--border-color); border-radius:var(--radius-md); background:none; color:${done?'var(--text-secondary)':'var(--accent-color)'}; cursor:pointer;">
+                        <i class="${done ? 'ri-refresh-line' : 'ri-checkbox-circle-line'}"></i> ${done ? 'Reabrir' : 'Concluir'}
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+
+        const mc = document.getElementById('modal-container');
+        document.getElementById('modal-title').innerHTML = `<i class="ri-focus-3-line"></i> ${formatted}`;
+        document.getElementById('modal-body').innerHTML = `
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px;">${dayStudies.length} sessão(ões) para estudar</p>
             ${itemsHtml}`;
         mc.classList.remove('hidden');
     },
@@ -636,11 +789,42 @@ const appState = {
             title.innerText = 'Nova Disciplina';
             body.innerHTML = `
                 <form onsubmit="event.preventDefault(); appState.saveItem('subjects');">
-                    <div class="form-group"><label>Nome</label><input type="text" id="m-name" required></div>
+                    <div style="display:flex; gap:12px;">
+                        <div class="form-group" style="width: 80px; position:relative;">
+                            <label>Emoji</label>
+                            <input type="text" id="m-emoji" value="📚" required readonly style="text-align:center; font-size:1.2rem; padding:0.5rem; cursor:pointer;" onclick="appState.toggleEmojiPicker(event)">
+                            <div id="emoji-picker-container" class="hidden" style="position:absolute; top:75px; left:0; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,0.2); border-radius:8px;">
+                                <emoji-picker></emoji-picker>
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex:1;"><label>Nome</label><input type="text" id="m-name" required></div>
+                    </div>
                     <div class="form-group"><label>Máx. Faltas</label><input type="number" id="m-abs" value="0"></div>
                     <div class="form-group"><label>Média Alvo</label><input type="number" step="0.1" id="m-grade" value="6.0"></div>
                     <div class="form-group"><label>Cor</label><input type="color" id="m-color" value="#2383e2" style="height:40px;padding:0;cursor:pointer;width:100%"></div>
                     <button type="submit" class="btn-primary" style="width:100%; margin-top:8px;">Salvar</button>
+                </form>`;
+
+        } else if (type === 'editSubject') {
+            const sub = this.data.subjects.find(s => s.id === editId);
+            if (!sub) return;
+            title.innerText = 'Editar Disciplina';
+            body.innerHTML = `
+                <form onsubmit="event.preventDefault(); appState.updateSubject(${editId});">
+                    <div style="display:flex; gap:12px;">
+                        <div class="form-group" style="width: 80px; position:relative;">
+                            <label>Emoji</label>
+                            <input type="text" id="m-emoji" value="${sub.emoji || '📚'}" required readonly style="text-align:center; font-size:1.2rem; padding:0.5rem; cursor:pointer;" onclick="appState.toggleEmojiPicker(event)">
+                            <div id="emoji-picker-container" class="hidden" style="position:absolute; top:75px; left:0; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,0.2); border-radius:8px;">
+                                <emoji-picker></emoji-picker>
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex:1;"><label>Nome</label><input type="text" id="m-name" value="${sub.name}" required></div>
+                    </div>
+                    <div class="form-group"><label>Máx. Faltas</label><input type="number" id="m-abs" value="${sub.max_absences}"></div>
+                    <div class="form-group"><label>Média Alvo</label><input type="number" step="0.1" id="m-grade" value="${sub.target_grade}"></div>
+                    <div class="form-group"><label>Cor</label><input type="color" id="m-color" value="${sub.color}" style="height:40px;padding:0;cursor:pointer;width:100%"></div>
+                    <button type="submit" class="btn-primary" style="width:100%; margin-top:8px;">Salvar Alterações</button>
                 </form>`;
 
         } else if (type === 'activity') {
@@ -731,9 +915,80 @@ const appState = {
                     </div>
                     <button type="submit" class="btn-primary" style="width:100%; margin-top:8px;">Salvar Prova</button>
                 </form>`;
+
+        } else if (type === 'studySession') {
+            title.innerText = 'Nova Sessão de Estudo';
+            body.innerHTML = `
+                <form onsubmit="event.preventDefault(); appState.saveItem('study_sessions');">
+                    <div class="form-group"><label>Tópico a Estudar</label><input type="text" id="m-title" required placeholder="Ex: Revisar Capítulo 4"></div>
+                    <div class="form-group"><label>Disciplina</label><select id="m-sub">${subjectOptions}</select></div>
+                    <div style="display:flex; gap:16px">
+                        <div class="form-group" style="flex:1"><label>Data</label><input type="date" id="m-date" required></div>
+                        <div class="form-group" style="flex:1"><label>Meta (min)</label><input type="number" id="m-dur" placeholder="Ex: 60" min="5"></div>
+                    </div>
+                    <div class="form-group"><label>Horário (opcional)</label><input type="time" id="m-time"></div>
+                    <div class="form-group"><label>Anotações/Roteiro</label><textarea id="m-notes" rows="3" style="resize:vertical"></textarea></div>
+                    <button type="submit" class="btn-primary" style="width:100%; margin-top:8px;">Agendar Estudo</button>
+                </form>`;
+            setTimeout(() => { const el = document.getElementById('m-date'); if(el) el.valueAsDate = new Date(); }, 10);
+
+        } else if (type === 'editStudySession') {
+            const sess = this.data.studySessions.find(s => s.id === editId);
+            if (!sess) return;
+            title.innerText = 'Editar Sessão de Estudo';
+            body.innerHTML = `
+                <form onsubmit="event.preventDefault(); appState.updateStudySession(${editId});">
+                    <div class="form-group"><label>Tópico a Estudar</label><input type="text" id="m-title" value="${sess.title}" required></div>
+                    <div class="form-group"><label>Disciplina</label>
+                        <select id="m-sub">
+                            ${subjectOptions.replace(`value="${sess.subject_id}"`, `value="${sess.subject_id}" selected`)}
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:16px">
+                        <div class="form-group" style="flex:1"><label>Data</label><input type="date" id="m-date" value="${sess.date}" required></div>
+                        <div class="form-group" style="flex:1"><label>Meta (min)</label><input type="number" id="m-dur" value="${sess.duration || ''}" min="5"></div>
+                    </div>
+                    <div class="form-group"><label>Horário (opcional)</label><input type="time" id="m-time" value="${sess.time || ''}"></div>
+                    <div class="form-group"><label>Anotações/Roteiro</label><textarea id="m-notes" rows="3" style="resize:vertical">${sess.notes || ''}</textarea></div>
+                    <button type="submit" class="btn-primary" style="width:100%; margin-top:8px;">Salvar Alterações</button>
+                </form>`;
         }
 
         mc.classList.remove('hidden');
+
+        if (type === 'subject' || type === 'editSubject') {
+            this._attachEmojiPicker();
+        }
+    },
+
+    _attachEmojiPicker() {
+        setTimeout(() => {
+            const picker = document.querySelector('emoji-picker');
+            const container = document.getElementById('emoji-picker-container');
+            const input = document.getElementById('m-emoji');
+            
+            if (picker && container && input) {
+                // Adapta o tema pro componente
+                if (this.theme === 'dark') {
+                    picker.classList.add('dark');
+                }
+                picker.addEventListener('emoji-click', event => {
+                    input.value = event.detail.unicode;
+                    container.classList.add('hidden');
+                });
+            }
+        }, 10);
+    },
+
+    toggleEmojiPicker(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const container = document.getElementById('emoji-picker-container');
+        if (container) {
+            container.classList.toggle('hidden');
+        }
     },
 
     async openNotes(parentType, parentId) {
@@ -745,6 +1000,9 @@ const appState = {
         if (parentType === 'subject') {
             const s = this.data.subjects.find(s => s.id === parentId);
             parentName = s ? s.name : '';
+        } else if (parentType === 'study_session') {
+            const s = this.data.studySessions.find(s => s.id === parentId);
+            parentName = s ? s.title : '';
         } else {
             const a = this.data.activities.find(a => a.id === parentId);
             parentName = a ? a.title : '';
@@ -860,6 +1118,7 @@ const appState = {
         if (endpoint === 'subjects') {
             data = {
                 name: document.getElementById('m-name').value,
+                emoji: document.getElementById('m-emoji').value,
                 max_absences: parseInt(document.getElementById('m-abs').value || 0),
                 target_grade: parseFloat(document.getElementById('m-grade').value || 6),
                 color: document.getElementById('m-color').value
@@ -893,10 +1152,35 @@ const appState = {
                 value: parseFloat(document.getElementById('m-val').value),
                 max_value: parseFloat(document.getElementById('m-max').value)
             };
+        } else if (endpoint === 'study_sessions') {
+            data = {
+                title: document.getElementById('m-title').value,
+                subject_id: document.getElementById('m-sub').value || null,
+                date: document.getElementById('m-date').value,
+                time: document.getElementById('m-time').value || null,
+                duration: parseInt(document.getElementById('m-dur').value) || null,
+                notes: document.getElementById('m-notes').value || null
+            };
         }
 
         const res = await fetch(`/api/${endpoint}`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (res.ok) { this.closeModal(); this.fetchData(); }
+    },
+
+    async updateSubject(id) {
+        const data = {
+            name: document.getElementById('m-name').value,
+            emoji: document.getElementById('m-emoji').value,
+            max_absences: parseInt(document.getElementById('m-abs').value || 0),
+            target_grade: parseFloat(document.getElementById('m-grade').value || 6),
+            color: document.getElementById('m-color').value
+        };
+        const res = await fetch(`/api/subjects/${id}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
@@ -912,6 +1196,23 @@ const appState = {
             description: document.getElementById('m-desc').value
         };
         const res = await fetch(`/api/activities/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (res.ok) { this.closeModal(); this.fetchData(); }
+    },
+
+    async updateStudySession(id) {
+        const data = {
+            title: document.getElementById('m-title').value,
+            subject_id: document.getElementById('m-sub').value || null,
+            date: document.getElementById('m-date').value,
+            time: document.getElementById('m-time').value || null,
+            duration: parseInt(document.getElementById('m-dur').value) || null,
+            notes: document.getElementById('m-notes').value || null
+        };
+        const res = await fetch(`/api/study_sessions/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -938,6 +1239,15 @@ const appState = {
 
     async toggleActivity(id, isCompleted) {
         await fetch(`/api/activities/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: isCompleted ? 'completed' : 'pending' })
+        });
+        this.fetchData();
+    },
+
+    async toggleStudySession(id, isCompleted) {
+        await fetch(`/api/study_sessions/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: isCompleted ? 'completed' : 'pending' })

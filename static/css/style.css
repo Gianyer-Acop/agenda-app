@@ -222,6 +222,7 @@ body {
 }
 
 /* ─── MODAL ─────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
 .modal-backdrop {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.45);
@@ -667,6 +668,10 @@ h2, h3, h4 { font-weight: 600; }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { 
+    100% { transform: rotate(360deg); } 
 }
 
 .password-wrapper {

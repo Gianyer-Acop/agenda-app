@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from database import db
-from models import User, Subject, Activity, Schedule, Absence, Grade, Note
+from models import User, Subject, Activity, Schedule, Absence, Grade, Note, StudySession
 from sqlalchemy import or_
 from config import NeonConfig
 
@@ -44,7 +44,7 @@ def register():
     user.set_password(data['password'])
     db.session.add(user)
     db.session.commit()
-    login_user(user)
+    login_user(user, remember=True)
     return jsonify(user.to_dict()), 201
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -56,7 +56,7 @@ def login():
     user = User.query.filter(or_(User.email == login_id, User.name == login_id)).first()
     
     if user and user.check_password(password):
-        login_user(user)
+        login_user(user, remember=True)
         return jsonify(user.to_dict())
     return jsonify({'error': 'Usuário ou senha incorretos'}), 401
 
@@ -238,6 +238,34 @@ def update_note(id):
 @app.route('/api/notes/<int:id>', methods=['DELETE'])
 @login_required
 def del_note(id): return delete_scoped(Note, id)
+
+# --- STUDY SESSIONS ---
+@app.route('/api/study_sessions', methods=['GET'])
+@login_required
+def get_study_sessions(): return get_all_scoped(StudySession)
+
+@app.route('/api/study_sessions', methods=['POST'])
+@login_required
+def add_study_session():
+    data = request.json
+    item = StudySession(**data, user_id=current_user.id)
+    db.session.add(item)
+    db.session.commit()
+    return jsonify(item.to_dict()), 201
+
+@app.route('/api/study_sessions/<int:id>', methods=['PUT'])
+@login_required
+def update_study_session(id):
+    item = StudySession.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    data = request.json
+    for key, value in data.items():
+        if key != 'user_id': setattr(item, key, value)
+    db.session.commit()
+    return jsonify(item.to_dict())
+
+@app.route('/api/study_sessions/<int:id>', methods=['DELETE'])
+@login_required
+def del_study_session(id): return delete_scoped(StudySession, id)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
