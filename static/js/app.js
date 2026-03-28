@@ -206,6 +206,49 @@ const appState = {
         localStorage.setItem('sidebarCollapsed', collapsed);
     },
 
+    updateDayTimeFields() {
+        const selector = document.getElementById('day-selector');
+        const container = document.getElementById('day-times-container');
+        const isDifferent = document.getElementById('m-diff-times').checked;
+        const mainTimeRow = document.getElementById('main-time-row');
+        const startInput = document.getElementById('m-start');
+        const endInput = document.getElementById('m-end');
+
+        if (isDifferent) {
+            mainTimeRow.style.display = 'none';
+            container.classList.remove('hidden');
+            startInput.required = false;
+            endInput.required = false;
+            
+            const activeChips = selector.querySelectorAll('.day-chip.active');
+            const daysMap = { '1': 'Seg', '2': 'Ter', '3': 'Qua', '4': 'Qui', '5': 'Sex', '6': 'Sáb', '0': 'Dom' };
+            
+            const existingRows = Array.from(container.querySelectorAll('.day-time-row'));
+            let html = '';
+            activeChips.forEach(chip => {
+                const day = chip.dataset.day;
+                const existing = existingRows.find(r => r.dataset.day === day);
+                const sVal = existing ? existing.querySelector('.m-start-day').value : startInput.value;
+                const eVal = existing ? existing.querySelector('.m-end-day').value : endInput.value;
+                
+                html += `
+                <div class="day-time-row" data-day="${day}">
+                    <div class="day-time-label">${daysMap[day]}</div>
+                    <div class="day-time-inputs">
+                        <div class="form-group"><input type="time" class="m-start-day" value="${sVal}" required></div>
+                        <div class="form-group"><input type="time" class="m-end-day" value="${eVal}" required></div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html || '<p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding:10px;">Selecione os dias acima primeiro.</p>';
+        } else {
+            mainTimeRow.style.display = 'flex';
+            container.classList.add('hidden');
+            startInput.required = true;
+            endInput.required = true;
+        }
+    },
+
     updateThemeButton() {
         const themeLabel = document.getElementById('theme-label');
         const themeIcon = document.querySelector('li[data-label="Tema"] i');
@@ -875,18 +918,31 @@ const appState = {
                 <form onsubmit="event.preventDefault(); appState.saveItem('schedules');">
                     <div class="form-group"><label>Nome da Aula</label><input type="text" id="m-title" required></div>
                     <div class="form-group"><label>Disciplina</label><select id="m-sub">${subjectOptions}</select></div>
-                    <div class="form-group"><label>Dia da Semana</label>
-                        <select id="m-day">
-                            <option value="1">Segunda-feira</option><option value="2">Terça-feira</option>
-                            <option value="3">Quarta-feira</option><option value="4">Quinta-feira</option>
-                            <option value="5">Sexta-feira</option><option value="6">Sábado</option>
-                            <option value="0">Domingo</option>
-                        </select>
+                    
+                    <div class="form-group"><label>Dia(s) da Semana</label>
+                        <div class="day-selector" id="day-selector">
+                            <div class="day-chip" data-day="1" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">SEG</div>
+                            <div class="day-chip" data-day="2" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">TER</div>
+                            <div class="day-chip" data-day="3" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">QUA</div>
+                            <div class="day-chip" data-day="4" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">QUI</div>
+                            <div class="day-chip" data-day="5" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">SEX</div>
+                            <div class="day-chip" data-day="6" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">SAB</div>
+                            <div class="day-chip" data-day="0" onclick="this.classList.toggle('active'); appState.updateDayTimeFields();">DOM</div>
+                        </div>
                     </div>
-                    <div style="display:flex; gap:16px">
+
+                    <label class="form-toggle">
+                        <input type="checkbox" id="m-diff-times" onchange="appState.updateDayTimeFields()">
+                        <span>Horários diferentes por dia?</span>
+                    </label>
+
+                    <div id="main-time-row" style="display:flex; gap:16px">
                         <div class="form-group" style="flex:1"><label>Início</label><input type="time" id="m-start" required></div>
                         <div class="form-group" style="flex:1"><label>Fim</label><input type="time" id="m-end" required></div>
                     </div>
+
+                    <div id="day-times-container" class="day-time-overrides hidden"></div>
+
                     <div class="form-group"><label>Local (Sala)</label><input type="text" id="m-loc"></div>
                     <button type="submit" class="btn-primary" style="width:100%; margin-top:8px;">Salvar</button>
                 </form>`;
@@ -1158,14 +1214,48 @@ const appState = {
                 description: document.getElementById('m-desc').value
             };
         } else if (endpoint === 'schedules') {
-            data = {
-                title: document.getElementById('m-title').value,
-                subject_id: document.getElementById('m-sub').value || null,
-                day_of_week: parseInt(document.getElementById('m-day').value),
-                start_time: document.getElementById('m-start').value,
-                end_time: document.getElementById('m-end').value,
-                location: document.getElementById('m-loc').value
-            };
+            const isDiff = document.getElementById('m-diff-times').checked;
+            const title = document.getElementById('m-title').value;
+            const subId = document.getElementById('m-sub').value || null;
+            const loc = document.getElementById('m-loc').value;
+
+            if (isDiff) {
+                const rows = Array.from(document.querySelectorAll('.day-time-row'));
+                if (rows.length === 0) {
+                    alert('Selecione pelo menos um dia.');
+                    return;
+                }
+                // Check if all times are filled
+                for (const row of rows) {
+                    if (!row.querySelector('.m-start-day').value || !row.querySelector('.m-end-day').value) {
+                        alert('Preencha os horários para todos os dias selecionados.');
+                        return;
+                    }
+                }
+                const batch = rows.map(row => ({
+                    title,
+                    subject_id: subId,
+                    day_of_week: parseInt(row.dataset.day),
+                    start_time: row.querySelector('.m-start-day').value,
+                    end_time: row.querySelector('.m-end-day').value,
+                    location: loc
+                }));
+                data = { schedules: batch };
+            } else {
+                const selectedDays = Array.from(document.querySelectorAll('.day-chip.active')).map(c => parseInt(c.dataset.day));
+                if (selectedDays.length === 0) {
+                    alert('Selecione pelo menos um dia da semana.');
+                    return;
+                }
+                data = {
+                    title,
+                    subject_id: subId,
+                    day_of_week: selectedDays,
+                    start_time: document.getElementById('m-start').value,
+                    end_time: document.getElementById('m-end').value,
+                    location: loc
+                };
+            }
         } else if (endpoint === 'absences') {
             data = {
                 subject_id: extraId,

@@ -147,11 +147,73 @@ def get_schedules(): return get_all_scoped(Schedule)
 @app.route('/api/schedules', methods=['POST'])
 @login_required
 def add_schedule():
-    data = request.json
-    item = Schedule(**data, user_id=current_user.id)
-    db.session.add(item)
-    db.session.commit()
-    return jsonify(item.to_dict()), 201
+    import traceback
+    try:
+        data = request.json
+        print(f"DEBUG: Received data: {data}")
+        
+        # Check if a batch of schedules is provided (for different times per day)
+        if 'schedules' in data and isinstance(data['schedules'], list):
+            created_items = []
+            valid_keys = ['subject_id', 'title', 'day_of_week', 'start_time', 'end_time', 'location']
+            for s_data in data['schedules']:
+                # Clean and filter data
+                filtered_data = {k: v for k, v in s_data.items() if k in valid_keys}
+                
+                # Defensive check: ensure subject_id is int or None
+                sid = filtered_data.get('subject_id')
+                if sid == "" or sid == "null" or sid == 0: filtered_data['subject_id'] = None
+                elif sid is not None: filtered_data['subject_id'] = int(sid)
+                
+                # Ensure integers
+                if 'day_of_week' in filtered_data:
+                    filtered_data['day_of_week'] = int(filtered_data['day_of_week'])
+                
+                print(f"DEBUG: Creating Schedule with: {filtered_data}")
+                item = Schedule(**filtered_data, user_id=current_user.id)
+                db.session.add(item)
+                created_items.append(item)
+            
+            db.session.commit()
+            print("DEBUG: Commit successful")
+            return jsonify([item.to_dict() for item in created_items]), 201
+        
+        days = data.get('day_of_week')
+        if isinstance(days, list):
+            created_items = []
+            for day in days:
+                item_data = {k: v for k, v in data.items() if k != 'day_of_week'}
+                item_data['day_of_week'] = int(day)
+                # Filter item_data
+                valid_keys = ['subject_id', 'title', 'day_of_week', 'start_time', 'end_time', 'location']
+                filtered_data = {k: v for k, v in item_data.items() if k in valid_keys}
+                
+                # Clean subject_id
+                sid = filtered_data.get('subject_id')
+                if sid == "" or sid == "null" or sid == 0: filtered_data['subject_id'] = None
+                elif sid is not None: filtered_data['subject_id'] = int(sid)
+
+                item = Schedule(**filtered_data, user_id=current_user.id)
+                db.session.add(item)
+                created_items.append(item)
+            db.session.commit()
+            return jsonify([item.to_dict() for item in created_items]), 201
+        else:
+            # Single item
+            valid_keys = ['subject_id', 'title', 'day_of_week', 'start_time', 'end_time', 'location']
+            filtered_data = {k: v for k, v in data.items() if k in valid_keys}
+            sid = filtered_data.get('subject_id')
+            if sid == "" or sid == "null" or sid == 0: filtered_data['subject_id'] = None
+            elif sid is not None: filtered_data['subject_id'] = int(sid)
+
+            item = Schedule(**filtered_data, user_id=current_user.id)
+            db.session.add(item)
+            db.session.commit()
+            return jsonify(item.to_dict()), 201
+    except Exception as e:
+        print("ERROR in add_schedule:")
+        print(traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e), "trace": traceback.format_exc()}), 500
 
 @app.route('/api/schedules/<int:id>', methods=['DELETE'])
 @login_required

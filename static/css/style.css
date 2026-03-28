@@ -702,3 +702,87 @@ h2, h3, h4 { font-weight: 600; }
     font-size: 1.8rem;
     vertical-align: middle;
 }
+
+/* Multi-day Selector */
+.day-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.day-chip {
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+.day-chip:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+.day-chip.active {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
+}
+
+/* Dynamic Day Time Overrides */
+.day-time-overrides {
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+.day-time-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+}
+.day-time-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+}
+.day-time-label {
+    width: 60px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: var(--accent-color);
+}
+.day-time-inputs {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+}
+.day-time-inputs .form-group {
+    margin-bottom: 0;
+    flex: 1;
+}
+
+/* Toggle Switch Styling */
+.form-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    cursor: pointer;
+    user-select: none;
+}
+.form-toggle input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    cursor: pointer;
+}
+.form-toggle span {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+
